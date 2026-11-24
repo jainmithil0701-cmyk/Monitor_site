@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Auto refresh every 60 seconds (also keeps the free Render service awake while this tab is open) -->
+    <meta http-equiv="refresh" content="60">
+    <title>SiteGuard - Uptime Monitor</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Segoe UI, Arial, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; }
+        header { padding: 24px 32px; background: #111c33; border-bottom: 1px solid #1e293b; }
+        header h1 { margin: 0; font-size: 26px; }
+        header p { margin: 4px 0 0; color: #94a3b8; font-size: 14px; }
+        main { max-width: 1000px; margin: 0 auto; padding: 24px; }
+        .summary { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+        .card { background: #1e293b; border-radius: 10px; padding: 16px 20px; flex: 1; min-width: 150px; }
+        .card .num { font-size: 32px; font-weight: 700; }
+        .card .label { color: #94a3b8; font-size: 13px; }
+        .green { color: #22c55e; } .red { color: #ef4444; }
+        form.add { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+        input { padding: 10px 12px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; flex: 1; min-width: 180px; }
+        button { padding: 10px 16px; border: 0; border-radius: 8px; cursor: pointer; font-weight: 600; background: #3b82f6; color: white; }
+        button.small { padding: 6px 10px; font-size: 12px; background: #334155; }
+        button.danger { background: #7f1d1d; }
+        .msg { padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; }
+        .msg.ok { background: #14532d; } .msg.err { background: #7f1d1d; }
+        .site { background: #1e293b; border-radius: 10px; padding: 16px 20px; margin-bottom: 14px; border-left: 6px solid #64748b; }
+        .site.up { border-left-color: #22c55e; } .site.down { border-left-color: #ef4444; }
+        .top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .name { font-size: 18px; font-weight: 600; }
+        .url { color: #94a3b8; font-size: 13px; word-break: break-all; }
+        .badge { padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; }
+        .badge.up { background: #14532d; color: #86efac; } .badge.down { background: #7f1d1d; color: #fca5a5; }
+        .badge.wait { background: #334155; color: #cbd5e1; }
+        .stats { display: flex; gap: 24px; margin: 12px 0; font-size: 14px; color: #cbd5e1; flex-wrap: wrap; }
+        .stats b { color: #fff; }
+        .beats { display: flex; gap: 3px; margin: 8px 0; }
+        .beat { width: 12px; height: 26px; border-radius: 3px; }
+        .beat.up { background: #22c55e; } .beat.down { background: #ef4444; }
+        .error { color: #fca5a5; font-size: 13px; }
+        .actions { display: flex; gap: 8px; margin-top: 8px; }
+        .actions form { margin: 0; }
+        footer { text-align: center; color: #64748b; font-size: 12px; padding: 24px; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>SiteGuard</h1>
+    <p>Cloud website uptime monitor - Java, Spring Boot, PostgreSQL on Render</p>
+</header>
+
+<main>
+    <div class="summary">
+        <div class="card"><div class="num" th:text="${total}">0</div><div class="label">Monitored sites</div></div>
+        <div class="card"><div class="num green" th:text="${upCount}">0</div><div class="label">Up</div></div>
+        <div class="card"><div class="num red" th:text="${downCount}">0</div><div class="label">Down</div></div>
+    </div>
+
+    <div class="msg ok" th:if="${message}" th:text="${message}"></div>
+    <div class="msg err" th:if="${error}" th:text="${error}"></div>
+
+    <form class="add" th:action="@{/sites}" method="post">
+        <input type="text" name="name" placeholder="Name (e.g. My College Website)">
+        <input type="text" name="url" placeholder="URL (e.g. https://example.com)" required>
+        <button type="submit">+ Add site</button>
+    </form>
+
+    <div th:if="${#lists.isEmpty(views)}">No sites yet. Add one above.</div>
+
+    <div th:each="v : ${views}" class="site"
+         th:classappend="${!v.checked()} ? '' : (${v.up()} ? 'up' : 'down')">
+        <div class="top">
+            <div>
+                <div class="name" th:text="${v.name()}">Name</div>
+                <div class="url" th:text="${v.url()}">https://</div>
+            </div>
+            <span class="badge wait" th:if="${!v.checked()}">PENDING</span>
+            <span class="badge up" th:if="${v.checked() and v.up()}">UP</span>
+            <span class="badge down" th:if="${v.checked() and !v.up()}">DOWN</span>
+        </div>
+
+        <div class="stats" th:if="${v.checked()}">
+            <span>Response: <b th:text="${v.responseMs()} + ' ms'">0 ms</b></span>
+            <span>Status code: <b th:text="${v.statusCode()}">200</b></span>
+            <span>Uptime: <b th:text="${v.uptimePercent()} + ' %'">100 %</b></span>
+            <span>Checks: <b th:text="${v.totalChecks()}">0</b></span>
+            <span>Last check: <b th:text="${v.lastChecked()}">-</b></span>
+        </div>
+
+        <div class="error" th:if="${v.checked() and !v.up() and v.error() != null}" th:text="${v.error()}"></div>
+
+        <div class="beats">
+            <div th:each="b : ${v.history()}" class="beat"
+                 th:classappend="${b.up()} ? 'up' : 'down'"
+                 th:title="${b.time()} + ' - ' + ${b.ms()} + ' ms'"></div>
+        </div>
+
+        <div class="actions">
+            <form th:action="@{/sites/{id}/check(id=${v.id()})}" method="post">
+                <button class="small" type="submit">Check now</button>
+            </form>
+            <form th:action="@{/sites/{id}/delete(id=${v.id()})}" method="post"
+                  onsubmit="return confirm('Delete this site and its history?');">
+                <button class="small danger" type="submit">Delete</button>
+            </form>
+        </div>
+    </div>
+</main>
+
+<footer>SiteGuard - Integrated Project (Java Programming + Cloud Computing)</footer>
+</body>
+</html>
